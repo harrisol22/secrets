@@ -2,11 +2,13 @@
 
 // dotenv needs to be called as early in the code as possible; creates environment variables
 require("dotenv").config()
+
 const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const encrypt = require("mongoose-encryption");
+const md5 = require("md5");
+
 
 const app = express();
 
@@ -22,11 +24,6 @@ const userSchema = new mongoose.Schema({
   email: String,
   password: String,
 });
-
-// set the secret key as the encryption; must be added before the model is created
-// to only encrypt password, add encryptedFields: option
-// process.env.SECRET accesses the SECRET environment variable from .env
-userSchema.plugin(encrypt, { secret: process.env.SECRET, encryptedFields: ["password"] });
 
 const User = new mongoose.model("User", userSchema);
 
@@ -45,7 +42,8 @@ app.get("/register", function(req, res) {
 app.post("/register", function(req, res) {
   const user = new User ({
     email: req.body.username,
-    password: req.body.password,
+    // runs md5 on the entered password to create an un-undoable hash
+    password: md5(req.body.password),
   })
 // mongoose-encrypt automatically encrypts on save
   user.save(function(err) {
@@ -59,7 +57,8 @@ app.post("/register", function(req, res) {
 
 app.post("/login", function(req, res) {
   const username = req.body.username;
-  const password = req.body.password;
+  // create hash of inputted password to compare to password hash in database
+  const password = md5(req.body.password);
   // check username and password; mongoose-encrypt will automatically decrypt
   User.findOne({email: username}, function(err, foundUser) {
     if(err) {
