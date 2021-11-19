@@ -7,7 +7,9 @@ const express = require("express");
 const bodyParser = require("body-parser");
 const ejs = require("ejs");
 const mongoose = require("mongoose");
-const md5 = require("md5");
+// salts password hashes for a predetermined number of rounds
+const bcrypt = require("bcrypt");
+const saltRounds = 10;
 
 
 const app = express();
@@ -40,36 +42,41 @@ app.get("/register", function(req, res) {
 });
 
 app.post("/register", function(req, res) {
-  const user = new User ({
-    email: req.body.username,
-    // runs md5 on the entered password to create an un-undoable hash
-    password: md5(req.body.password),
-  })
-// mongoose-encrypt automatically encrypts on save
-  user.save(function(err) {
-    if(err){
-      console.log(err);
-    } else
-    // only render secrets page from behind the register or login pages
-      res.render("secrets");
+
+  // creates hashed and salted password
+  bcrypt.hash(req.body.password, saltRounds, function(err, hash){
+    const user = new User ({
+      email: req.body.username,
+      // saves hashed password
+      password: hash,
+    })
+    user.save(function(err) {
+      if(err){
+        console.log(err);
+      } else
+      // only render secrets page from behind the register or login pages
+        res.render("secrets");
+    });
   });
+
 });
 
 app.post("/login", function(req, res) {
+
   const username = req.body.username;
-  // create hash of inputted password to compare to password hash in database
-  const password = md5(req.body.password);
-  // check username and password; mongoose-encrypt will automatically decrypt
+  const password = req.body.password;
+  // check username and password
   User.findOne({email: username}, function(err, foundUser) {
     if(err) {
       console.log(err);
     } else {
       if(foundUser){
-        if(foundUser.password === password) {
-          res.render("secrets");
-        }else {
-          res.send("Sorry, wrong password.");
-        }
+        // check salted and hashed password against database
+        bcrypt.compare(password, foundUser.password, function(err, result){
+          if (result === true){
+            res.render("secrets");
+          };
+        });
       }else {
         res.send("Sorry, that user does not exist.");
       }
